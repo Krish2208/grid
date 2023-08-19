@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const authMiddleware = require("../middleware/auth");
+const Vote = require("../models/vote");
 
 const router = express.Router();
 
@@ -28,6 +29,12 @@ router.post("/register", async (req, res) => {
       isBrand: isBrand,
       isApproved: isBrand ? true : false,
     });
+    if (!isBrand) {
+      vote = new Vote({
+        userId: user._id,
+      });
+      await vote.save();
+    }
 
     // Save the user to the database
     await user.save();
@@ -75,6 +82,44 @@ router.get("/is-brand", authMiddleware, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+router.post('/vote/:id', authMiddleware, async (req, res) => {
+  try {
+    const votingUser = await User.findOne({ email: req.user.email });
+    const user = await User.findById(req.params.id);
+    const voteValue = req.body.value;
+    const vote = await Vote.findOne({ userId: req.params.id });
+    if (voteValue !== 1 && voteValue !== -1) {
+      return res.status(400).json({ message: 'Invalid vote value' });
+    }
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    if (user.isApproved || user.isBrand) {
+      return res.status(400).json({ message: 'User is not pending' });
+    }
+    if (!votingUser.isApproved || votingUser.isBrand) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    if (vote) {
+      if (vote.favor.includes(votingUser._id) || vote.against.includes(votingUser._id)) {
+        return res.status(400).json({ message: 'Vote already cast' });
+      }
+      if (voteValue === 1) {
+        vote.favor.push(votingUser._id);
+      } else {
+        vote.against.push(votingUser._id);
+      }
+      await vote.save();
+    } else {
+      res.status(400).json({ message: 'Vote not found' });
+    }
+    res.status(200).json({ message: 'Vote cast successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error' });
   }
 });
 
