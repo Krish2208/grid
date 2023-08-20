@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const userRoutes = require('./routes/user');
+const brandRoutes = require('./routes/brand');
 const authMiddleware = require('./middleware/auth');
 
 const { MONGO_URI } = require("./config");
@@ -16,6 +17,7 @@ app.use(cors());
 app.use(bodyParser.json());
 
 app.use('/user', userRoutes);
+app.use('/brand', brandRoutes);
 app.get('/api/protected', authMiddleware, (req, res) => {
   res.json({ message: 'Protected route' });
 });

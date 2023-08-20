@@ -72,6 +72,19 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.get("/profile", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.user.email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.status(200).json({ user: user.toObject() });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
 router.get("/is-brand", authMiddleware, async (req, res) => {
   try {
     const user = await User.findOne({ email: req.user.email });
@@ -85,27 +98,30 @@ router.get("/is-brand", authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/vote/:id', authMiddleware, async (req, res) => {
+router.post("/vote/:id", authMiddleware, async (req, res) => {
   try {
     const votingUser = await User.findOne({ email: req.user.email });
     const user = await User.findById(req.params.id);
     const voteValue = req.body.value;
     const vote = await Vote.findOne({ userId: req.params.id });
     if (voteValue !== 1 && voteValue !== -1) {
-      return res.status(400).json({ message: 'Invalid vote value' });
+      return res.status(400).json({ message: "Invalid vote value" });
     }
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
     if (user.isApproved || user.isBrand) {
-      return res.status(400).json({ message: 'User is not pending' });
+      return res.status(400).json({ message: "User is not pending" });
     }
     if (!votingUser.isApproved || votingUser.isBrand) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: "Unauthorized" });
     }
     if (vote) {
-      if (vote.favor.includes(votingUser._id) || vote.against.includes(votingUser._id)) {
-        return res.status(400).json({ message: 'Vote already cast' });
+      if (
+        vote.favor.includes(votingUser._id) ||
+        vote.against.includes(votingUser._id)
+      ) {
+        return res.status(400).json({ message: "Vote already cast" });
       }
       if (voteValue === 1) {
         vote.favor.push(votingUser._id);
@@ -114,46 +130,46 @@ router.post('/vote/:id', authMiddleware, async (req, res) => {
       }
       await vote.save();
     } else {
-      res.status(400).json({ message: 'Vote not found' });
+      res.status(400).json({ message: "Vote not found" });
     }
-    res.status(200).json({ message: 'Vote cast successfully' });
+    res.status(200).json({ message: "Vote cast successfully" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
-router.get('/votes/:id', authMiddleware, async (req, res) => {
+router.get("/votes/:id", authMiddleware, async (req, res) => {
   try {
     const user = await User.findOne({ email: req.user.email });
     const votes = await Vote.findOne({ userId: req.params.id });
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
     if (user.isBrand) {
-      return res.status(400).json({ message: 'User is a brand' });
+      return res.status(400).json({ message: "User is a brand" });
     }
     if (!user.isApproved) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: "Unauthorized" });
     }
     const favorVotes = votes.favor.length;
     const againstVotes = votes.against.length;
     res.status(200).json({ favor: favorVotes, against: againstVotes });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
-router.get('/unapproved', authMiddleware, async (req, res) => {
+router.get("/unapproved", authMiddleware, async (req, res) => {
   try {
     const user = await User.findOne({ email: req.user.email });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
     if (user.isBrand || !user.isApproved) {
-      return res.status(401).json({ message: 'Unauthorized' });
+      return res.status(401).json({ message: "Unauthorized" });
     }
     var unapprovedUsers = await User.find({ isApproved: false });
     const unapprovedUserIds = unapprovedUsers.map((user) => user._id);
@@ -166,18 +182,23 @@ router.get('/unapproved', authMiddleware, async (req, res) => {
       }
       voteStatus[vote.userId].favor += vote.favor.length;
       voteStatus[vote.userId].against += vote.against.length;
-      voteStatus[vote.userId].isVoted = vote.favor.includes(user._id) || vote.against.includes(user._id);
+      voteStatus[vote.userId].isVoted =
+        vote.favor.includes(user._id) || vote.against.includes(user._id);
     });
 
     const unapprovedUsersWithVotes = unapprovedUsers.map((user) => ({
       ...user.toObject(),
-      voteStatus: voteStatus[user._id] || { favor: 0, against: 0, isVoted: false },
+      voteStatus: voteStatus[user._id] || {
+        favor: 0,
+        against: 0,
+        isVoted: false,
+      },
     }));
-    
+
     res.status(200).json({ unapprovedUsers: unapprovedUsersWithVotes });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
