@@ -123,4 +123,62 @@ router.post('/vote/:id', authMiddleware, async (req, res) => {
   }
 });
 
+router.get('/votes/:id', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.user.email });
+    const votes = await Vote.findOne({ userId: req.params.id });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    if (user.isBrand) {
+      return res.status(400).json({ message: 'User is a brand' });
+    }
+    if (!user.isApproved) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    const favorVotes = votes.favor.length;
+    const againstVotes = votes.against.length;
+    res.status(200).json({ favor: favorVotes, against: againstVotes });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+router.get('/unapproved', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findOne({ email: req.user.email });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    if (user.isBrand || !user.isApproved) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    var unapprovedUsers = await User.find({ isApproved: false });
+    const unapprovedUserIds = unapprovedUsers.map((user) => user._id);
+    const votes = await Vote.find({ userId: { $in: unapprovedUserIds } });
+
+    const voteStatus = {};
+    votes.map((vote) => {
+      if (!voteStatus[vote.userId]) {
+        voteStatus[vote.userId] = { favor: 0, against: 0, isVoted: false };
+      }
+      voteStatus[vote.userId].favor += vote.favor.length;
+      voteStatus[vote.userId].against += vote.against.length;
+      voteStatus[vote.userId].isVoted = vote.favor.includes(user._id) || vote.against.includes(user._id);
+    });
+
+    const unapprovedUsersWithVotes = unapprovedUsers.map((user) => ({
+      ...user.toObject(),
+      voteStatus: voteStatus[user._id] || { favor: 0, against: 0, isVoted: false },
+    }));
+    
+    res.status(200).json({ unapprovedUsers: unapprovedUsersWithVotes });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 module.exports = router;
